@@ -1,13 +1,20 @@
+#!/usr/bin/env ruby
 
 class DoxygenConverter
 
-	def convert_project(project_directory_path,rails_root_path)
+	def convert_project(project_directory_path,rails_root_path,doxy_controller_name = "doxygen_docs")
 		@project_directory_path = project_directory_path
 		@rails_root_path = rails_root_path
+		@html_file_to_route_map
+		@doxy_controller_name = doxy_controller_name
+
 		if @project_directory_path
+			
 			find_images_and_move_to_assets
 			find_stylesheets_and_move_to_assets
 			find_javascripts_and_move_to_assets
+			@html_file_to_route_map = generate_routes_for_assets
+			replace_link_tags @html_file_to_route_map
 		end
 	end
 
@@ -40,15 +47,97 @@ class DoxygenConverter
 	end
 
 	def generate_routes_for_assets
+		html_file_to_route_map = {}
 		html_files = find_paths_with_extension(["html"],@project_directory_path)
+		path_names = html_files.inject([]) do |acc,it| 
+			file_name_without_extension = it.gsub("\.html","")
+			file_name_without_extension = file_name_without_extension.gsub("-","_").chomp #Rails controller method names should not have a - in them
+			acc << file_name_without_extension
+			html_file_to_route_map[it.chomp] = "#{file_name_without_extension}"
+			acc
+		end
 
+		path_names_str = path_names.inject("") { |acc,it| acc << " #{it}" }		
+		rails_generate_command_string = "rails generate controller doxygen_docs #{path_names_str}"
+		Dir.chdir(@rails_root_path){ system rails_generate_command_string } 	
+
+		html_file_to_route_map		
 	end
 
+	def replace_link_tags(html_file_to_route_map)
+		html_files = find_paths_with_extension(["html"],@project_directory_path)
+		html_files.each { |file| railsify_html_file file,html_file_to_route_map }
+
+
+		
+	end
+
+	def railsify_html_file file_name,html_file_to_route_map
+
+		puts "#{@project_directory_path}/#{file_name}"
+		html_file = File.open("#{@project_directory_path}/#{file_name.chomp}","r")
+		erb_file = File.open("#{@rails_root_path}/app/views/#{@doxy_controller_name}/#{file_name.chomp}.erb","w")
+		puts "Railsifying file name #{file_name}"
+
+		in_body = false
+
+		html_file.each do |line|
+
+			if line.match("<body>")
+				in_body = true
+				next 
+			end
+
+			if in_body
+
+				if line.match("</body>")
+					in_body = false
+				else
+					
+					output_string = line
+					m = line.match(/(a .*href=\")(.*)\"/) #Find and replace anchor tags hrefs with rails erb tags pointing to routes just generated
+
+					if m
+						tag_start,file_name = m.captures
+						
+						rails_path_for_link = html_file_to_route_map[file_name]
+						if rails_path_for_link
+							output_string = line.gsub("\"#{file_name}\"","<%= \"#{rails_path_for_link}\" %>")
+							
+						end
+					end
+
+					erb_file.write output_string
+
+					image_match = line.match(/(<img.*src=)(.*)(\"|\')/)
+
+					if image_match
+						puts "Match was #{image_match}"
+						tag_start,image_name = image_match.captures
+						puts "tag start was #{tag_start}"
+						puts "image name was #{image_name}"
+						if image_name
+							
+							output_string = line.gsub(image_name,"<%= image_tag('#{image_name}') %>")
+						end
+					end
+
+					erb_file.write output_string
+
+				end
+
+			end
+
+		end
+
+	end
 
 
 end
 
 converter = DoxygenConverter.new
+
+
 
 converter.convert_project("/Users/richardtolley/rails_stuff/jko_doc_site_copy/public/ios_doxygen_html","/Users/richardtolley/rails_stuff/jko_doc_site_copy")
 
