@@ -1,5 +1,7 @@
 #!/usr/bin/env ruby
 
+require 'nokogiri'
+
 class DoxygenConverter
 
 	def convert_project(project_directory_path,rails_root_path,doxy_controller_name = "doxygen_docs")
@@ -107,19 +109,24 @@ class DoxygenConverter
 						end
 					end
 
-					erb_file.write output_string
+					
 
-					image_match = line.match(/(<img.*src=)(.*)(\"|\')/)
+					image_match = line.match(/<img.*\/>|<\/img>/)
 
 					if image_match
 						puts "Match was #{image_match}"
-						tag_start,image_name = image_match.captures
-						puts "tag start was #{tag_start}"
-						puts "image name was #{image_name}"
-						if image_name
-							
-							output_string = line.gsub(image_name,"<%= image_tag('#{image_name}') %>")
+						
+						tag = Nokogiri::XML::Document.parse(image_match.to_s)
+
+						puts tag.root["src"]
+
+
+						output_string = "<%= image_tag('#{tag.root["src"]}') %>"
+
+						tag.root.attributes.each_pair do |k,v|
+							puts "Key is #{k}, value is #{v}"
 						end
+
 					end
 
 					erb_file.write output_string
