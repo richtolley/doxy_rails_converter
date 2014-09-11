@@ -7,7 +7,7 @@ class DoxygenConverter
 	def convert_project(project_directory_path,rails_root_path,doxy_controller_name = "doxygen_docs")
 		@project_directory_path = project_directory_path
 		@rails_root_path = rails_root_path
-		@html_file_to_route_map
+		@read_erb_file_to_route_map
 		@doxy_controller_name = doxy_controller_name
 
 		if @project_directory_path
@@ -74,16 +74,49 @@ class DoxygenConverter
 		
 	end
 
+	def remove_title_table file_name
+
+		
+		in_file = File.open "#{@rails_root_path}/app/views/#{@doxy_controller_name}/#{file_name.chomp}.erb","r"
+
+		html_doc = Nokogiri::HTML::Document.parse in_file
+		in_file.close
+
+		html_doc.css("div").each { |div| div.remove if div["id"] == "titlearea" }
+		html_doc.css("div").each { |div| div.remove if div["id"] == "MSearchBox" }
+		html_doc.css("div").each { |div| div.remove if div["id"] == "MSearchSelectWindow" }
+		html_doc.css("div").each { |div| div.remove if div["id"] == "MSearchResultsWindow" }
+		out_file = File.open "#{@rails_root_path}/app/views/#{@doxy_controller_name}/#{file_name.chomp}.erb","w"
+		out_file.write html_doc.to_s
+		out_file.close
+	end
+
 	def railsify_html_file file_name,html_file_to_route_map
 
 		puts "#{@project_directory_path}/#{file_name}"
-		html_file = File.open("#{@project_directory_path}/#{file_name.chomp}","r")
-		erb_file = File.open("#{@rails_root_path}/app/views/#{@doxy_controller_name}/#{file_name.chomp}.erb","w")
-		puts "Railsifying file name #{file_name}"
 
+		#Copy contents of HTML file in public directory into a newly created html.erb file in the doxygen_docs subdir
+		#of views
+
+		orig_html_file = File.open("#{@project_directory_path}/#{file_name.chomp}","r")
+
+		erb_file_path = "#{@rails_root_path}/app/views/#{@doxy_controller_name}/#{file_name.chomp}.erb"
+
+		orig_erb_file = File.open(erb_file_path,"w")
+		orig_erb_file.write orig_html_file.read
+		orig_erb_file.close
+		orig_html_file.close
+
+		#Remove the unwanted title table that doxygen puts at the top of each page
+
+		remove_title_table file_name
+		read_erb_file =  File.open(erb_file_path,"r")
+		
 		in_body = false
 
-		html_file.each do |line|
+		file_output_string = ""
+
+		read_erb_file.each do |line|
 
 			if line.match("<body>")
 				in_body = true
@@ -109,8 +142,6 @@ class DoxygenConverter
 						end
 					end
 
-					
-
 					image_match = line.match(/<img.*\/>|<\/img>/)
 
 					if image_match
@@ -129,13 +160,17 @@ class DoxygenConverter
 
 					end
 
-					erb_file.write output_string
+					file_output_string << output_string
 
 				end
 
 			end
 
 		end
+
+
+		write_erb_file = File.open(erb_file_path,"w")
+		write_erb_file.write file_output_string
 
 	end
 
