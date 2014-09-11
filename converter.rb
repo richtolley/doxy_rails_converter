@@ -142,7 +142,7 @@ class DoxygenConverter
 						end
 					end
 
-					image_match = line.match(/<img.*\/>|<\/img>/)
+					image_match = line.match(/<img.*\/>|<\/img>|<img.*/) #Doxygen output seems to have some unclosed image tags, hence 3rd group
 
 					if image_match
 						puts "Match was #{image_match}"
