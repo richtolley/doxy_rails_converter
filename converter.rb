@@ -68,10 +68,7 @@ class DoxygenConverter
 
 	def replace_link_tags(html_file_to_route_map)
 		html_files = find_paths_with_extension(["html"],@project_directory_path)
-		html_files.each { |file| railsify_html_file file,html_file_to_route_map }
-
-
-		
+		html_files.each { |file| railsify_html_file file,html_file_to_route_map }		
 	end
 
 	def remove_title_table file_name
@@ -176,11 +173,5 @@ class DoxygenConverter
 
 
 end
-
-converter = DoxygenConverter.new
-
-
-
-converter.convert_project("/Users/richardtolley/rails_stuff/jko_doc_site_copy/public/ios_doxygen_html","/Users/richardtolley/rails_stuff/jko_doc_site_copy")
 
 
